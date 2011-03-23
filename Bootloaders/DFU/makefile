@@ -58,7 +58,7 @@ ARCH = AVR8
 # Target board (see library "Board Types" documentation, NONE for projects not requiring
 # LUFA board drivers). If USER is selected, put custom board drivers in a directory called
 # "Board" inside the application directory.
-BOARD = USBKEY
+BOARD = RZUSBSTICK
 
 
 # Processor frequency.
@@ -95,7 +95,7 @@ F_USB = $(F_CPU)
 # Note that the bootloader size and start address given in AVRStudio is in words and not
 # bytes, and so will need to be doubled to obtain the byte address needed by AVR-GCC.
 FLASH_SIZE_KB        = 128
-BOOT_SECTION_SIZE_KB = 4
+BOOT_SECTION_SIZE_KB = 8
 BOOT_START           = 0x$(shell echo "obase=16; ($(FLASH_SIZE_KB) - $(BOOT_SECTION_SIZE_KB)) * 1024" | bc)
 
 
@@ -354,14 +354,14 @@ AVRDUDE_PROGRAMMER = jtagmkII
 # com1 = serial port. Use lpt1 to connect to parallel port.
 AVRDUDE_PORT = usb
 
-AVRDUDE_WRITE_FLASH = -U flash:w:$(TARGET).hex
+AVRDUDE_WRITE_FLASH = -B 0.5 -U flash:w:$(TARGET).hex
 #AVRDUDE_WRITE_EEPROM = -U eeprom:w:$(TARGET).eep
 
 
 # Uncomment the following if you want avrdude's erase cycle counter.
 # Note that this counter needs to be initialized first using -Yn,
 # see avrdude manual.
-#AVRDUDE_ERASE_COUNTER = -y
+AVRDUDE_ERASE_COUNTER = -y
 
 # Uncomment the following if you do /not/ wish a verification to be
 # performed after programming the device.
@@ -386,7 +386,7 @@ DEBUG_MFREQ = $(F_CPU)
 
 # Set the DEBUG_UI to either gdb or insight.
 # DEBUG_UI = gdb
-DEBUG_UI = insight
+DEBUG_UI = gdb
 
 # Set the debugging back-end to either avarice, simulavr.
 DEBUG_BACKEND = avarice
@@ -545,16 +545,15 @@ endif
 debug: gdb-config $(TARGET).elf
 ifeq ($(DEBUG_BACKEND), avarice)
 	@echo Starting AVaRICE - Press enter when "waiting to connect" message displays.
-	@$(WINSHELL) /c start avarice --jtag $(JTAG_DEV) --erase --program --file \
-	$(TARGET).elf $(DEBUG_HOST):$(DEBUG_PORT)
-	@$(WINSHELL) /c pause
+	avarice -g --jtag-bitrate 2000MHz --erase --program --file \
+	$(TARGET).elf $(DEBUG_HOST):$(DEBUG_PORT) --detach
 
 else
 	@$(WINSHELL) /c start simulavr --gdbserver --device $(MCU) --clock-freq \
 	$(DEBUG_MFREQ) --port $(DEBUG_PORT)
 endif
-	@$(WINSHELL) /c start avr-$(DEBUG_UI) --command=$(GDBINIT_FILE)
-
+	@avr-$(DEBUG_UI) --command=$(GDBINIT_FILE)
+	killall avarice
 
 
 

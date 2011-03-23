@@ -118,8 +118,7 @@
 
 			static inline void LEDs_SetAllLEDs(const uint8_t LEDMask)
 			{
-				PORTD = (((PORTD & ~LEDS_LED1) |  (LEDMask & LEDS_LED1)) |
-				         ((PORTD |  LEDS_LED2) & ~(LEDMask & LEDS_LED2)));
+                PORTD = ((PORTE&~LEDS_PORTD_LEDS) | (LEDMask&LEDS_PORTD_LEDS)) ^ ~LEDS_LED1;
 				PORTE = ((PORTE | (LEDS_PORTE_LEDS << LEDS_PORTE_MASK_SHIFT)) &
 				        ~((LEDMask & LEDS_PORTE_LEDS) << LEDS_PORTE_MASK_SHIFT));
 			}

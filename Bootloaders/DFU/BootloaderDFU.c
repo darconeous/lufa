@@ -92,6 +92,9 @@ static uint16_t StartAddr = 0x0000;
  */
 static uint16_t EndAddr = 0x0000;
 
+uint32_t BootKey ATTR_NO_INIT;
+#define BootKey (*(uint32_t*)(0x1000-8))
+#define MAGIC_BOOTLOADER_COOKIE     (0xDEAFBEEF)
 
 /** Main program entry point. This routine configures the hardware required by the bootloader, then continuously
  *  runs the bootloader processing routine until instructed to soft-exit, or hard-reset via the watchdog to start
@@ -99,9 +102,27 @@ static uint16_t EndAddr = 0x0000;
  */
 int main(void)
 {
+    /* Also check the "button". */
+    RunBootloader = (BUTTONS_BUTTON1&Buttons_GetStatus());
+    
+    //RunBootloader |= (MCUSR & (1<<WDRF));
+    
+    RunBootloader |= (BootKey++==MAGIC_BOOTLOADER_COOKIE);
+    
+    if((BootKey<MAGIC_BOOTLOADER_COOKIE-1) || (BootKey>MAGIC_BOOTLOADER_COOKIE))
+        BootKey = MAGIC_BOOTLOADER_COOKIE-1;
+    
+    if(eeprom_read_byte((uint8_t*)(0x1000-4))==0xFF) {
+        RunBootloader = 1;
+        eeprom_write_byte((uint8_t*)(0x1000-4),0x00);
+    }
+    
+    if(!RunBootloader)
+        AppStartPtr();
+
 	/* Configure hardware required by the bootloader */
 	SetupHardware();
-
+    
 	#if ((BOARD == BOARD_XPLAIN) || (BOARD == BOARD_XPLAIN_REV1))
 	/* Disable JTAG debugging */
 	MCUCR |= (1 << JTD);
@@ -113,18 +134,33 @@ int main(void)
 
 	/* If the TCK pin is not jumpered to ground, start the user application instead */
 	RunBootloader = (!(PINF & (1 << 4)));
-	
+		
 	/* Re-enable JTAG debugging */
 	MCUCR &= ~(1 << JTD);
 	MCUCR &= ~(1 << JTD);	
 	#endif
-
+        
+    uint16_t pool=0;
+    uint16_t amt=0;
+    
 	/* Enable global interrupts so that the USB stack can function */
 	sei();
-
+    
 	/* Run the USB management task while the bootloader is supposed to be running */
-	while (RunBootloader || WaitForExit)
-	  USB_USBTask();
+	while (RunBootloader || WaitForExit) {
+      for(amt=0;amt!=0xFFFF;amt++) {
+        USB_USBTask();
+        wdt_reset();
+        LEDs_SetAllLEDs(((pool+=(amt>>8))&(1<<8))?LEDS_ALL_LEDS:LEDS_NO_LEDS);
+        pool&=~(1<<8);
+      }
+      for(amt=0xFFFF;amt!=0;amt--) {
+        USB_USBTask();
+        wdt_reset();
+        LEDs_SetAllLEDs(((pool+=(amt>>8))&(1<<8))?LEDS_ALL_LEDS:LEDS_NO_LEDS);
+        pool&=~(1<<8);
+      }
+    }
 
 	/* Reset configured hardware back to their original states for the user application */
 	ResetHardware();
@@ -132,6 +168,8 @@ int main(void)
 	/* Start the user application */
 	AppStartPtr();
 }
+
+#define STRINGIFY(x) #x
 
 /** Configures all hardware required for the bootloader. */
 void SetupHardware(void)
@@ -146,9 +184,11 @@ void SetupHardware(void)
 	/* Relocate the interrupt vector table to the bootloader section */
 	MCUCR = (1 << IVCE);
 	MCUCR = (1 << IVSEL);
-
+    
 	/* Initialize the USB subsystem */
 	USB_Init();
+
+    LEDs_Init();
 }
 
 /** Resets all configured hardware required for the bootloader back to their original states. */
@@ -160,6 +200,8 @@ void ResetHardware(void)
 	/* Relocate the interrupt vector table back to the application section */
 	MCUCR = (1 << IVCE);
 	MCUCR = 0;
+
+    LEDs_SetAllLEDs(0);
 }
 
 /** Event handler for the USB_ControlRequest event. This is used to catch and process control requests sent to
@@ -167,7 +209,7 @@ void ResetHardware(void)
  *  internally.
  */
 void EVENT_USB_Device_ControlRequest(void)
-{
+{    
 	/* Get the size of the command and data from the wLength value */
 	SentCommand.DataSize = USB_ControlRequest.wLength;
 	
