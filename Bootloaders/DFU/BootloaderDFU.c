@@ -96,6 +96,8 @@ uint32_t BootKey ATTR_NO_INIT;
 #define BootKey (*(uint32_t*)(0x1000-8))
 #define MAGIC_BOOTLOADER_COOKIE     (0xDEAFBEEF)
 
+#define EEPROM_MAGIC_BYTE   (uint8_t*)(E2END-3)
+
 /** Main program entry point. This routine configures the hardware required by the bootloader, then continuously
  *  runs the bootloader processing routine until instructed to soft-exit, or hard-reset via the watchdog to start
  *  the loaded application code.
@@ -112,9 +114,9 @@ int main(void)
     if((BootKey<MAGIC_BOOTLOADER_COOKIE-1) || (BootKey>MAGIC_BOOTLOADER_COOKIE))
         BootKey = MAGIC_BOOTLOADER_COOKIE-1;
     
-    if(eeprom_read_byte((uint8_t*)(0x1000-4))==0xFF) {
+    if(eeprom_read_byte(EEPROM_MAGIC_BYTE)==0xFF) {
         RunBootloader = 1;
-        eeprom_write_byte((uint8_t*)(0x1000-4),0x00);
+        eeprom_write_byte(EEPROM_MAGIC_BYTE,0x00);
     }
     
     if(!RunBootloader)
