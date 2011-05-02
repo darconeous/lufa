@@ -219,10 +219,12 @@
 			                                        ATTR_NON_NULL_PTR_ARG(1) ATTR_ALWAYS_INLINE;
 			static inline void Scheduler_ResetDelay(SchedulerDelayCounter_t* const DelayCounter)
 			{
-				ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-				{
-					*DelayCounter = Scheduler_TickCounter;
-				}
+				uint_reg_t CurrentGlobalInt = GetGlobalInterruptMask();
+				GlobalInterruptDisable();
+
+				*DelayCounter = Scheduler_TickCounter;
+
+				SetGlobalInterruptMask(CurrentGlobalInt);
 			}
 
 		/* Function Prototypes: */

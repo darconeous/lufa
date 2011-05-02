@@ -55,8 +55,8 @@
 		#endif
 
 	/* Private Interface - For use in library only: */
-	#if !defined(__DOXYGEN__)
-		/* Macros: */
+	#if !defined(__DOXYGEN__)		
+		/* Enums: */
 			enum USB_Interrupts_t
 			{
 				USB_INT_VBUSTI  = 0,
@@ -78,9 +78,6 @@
 				USB_INT_VBERRI  = 11,
 				#endif
 			};
-		
-		/* ISR Prototypes: */
-			ISR(USB_GEN_vect);
 		
 		/* Inline Functions: */
 			static inline void USB_INT_Enable(const uint8_t Interrupt) ATTR_ALWAYS_INLINE;
@@ -335,6 +332,18 @@
 			void USB_INT_DisableAllInterrupts(void);
 	#endif
 
+	/* Public Interface - May be used in end-application: */
+		/* ISR Prototypes: */
+			#if defined(__DOXYGEN__)
+				/** Interrupt service routine handler for the USB controller ISR group. This interrupt routine <b>must</b> be
+				 *  linked to the entire USB controller ISR vector group inside the AVR32's interrupt controller peripheral,
+				 *  using the user application's preferred USB controller driver.
+				 */
+				void USB_GEN_vect(void);
+			#else
+				ISR(USB_GEN_vect);
+			#endif
+			
 	/* Disable C linkage for C++ Compilers: */
 		#if defined(__cplusplus)
 			}

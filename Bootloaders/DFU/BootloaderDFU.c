@@ -124,7 +124,7 @@ int main(void)
 
 	/* Configure hardware required by the bootloader */
 	SetupHardware();
-    
+
 	#if ((BOARD == BOARD_XPLAIN) || (BOARD == BOARD_XPLAIN_REV1))
 	/* Disable JTAG debugging */
 	MCUCR |= (1 << JTD);
@@ -132,22 +132,26 @@ int main(void)
 
 	/* Enable pull-up on the JTAG TCK pin so we can use it to select the mode */
 	PORTF |= (1 << 4);
-	_delay_ms(10);
+	Delay_MS(10);
 
 	/* If the TCK pin is not jumpered to ground, start the user application instead */
 	RunBootloader = (!(PINF & (1 << 4)));
-		
+	
 	/* Re-enable JTAG debugging */
 	MCUCR &= ~(1 << JTD);
 	MCUCR &= ~(1 << JTD);	
 	#endif
+
+	/* Turn on first LED on the board to indicate that the bootloader has started */
+	//LEDs_SetAllLEDs(LEDS_LED1);
+
         
     uint16_t pool=0;
     uint16_t amt=0;
     
 	/* Enable global interrupts so that the USB stack can function */
 	sei();
-    
+
 	/* Run the USB management task while the bootloader is supposed to be running */
 	while (RunBootloader || WaitForExit) {
       for(amt=0;amt!=0xFFFF;amt++) {
@@ -186,11 +190,14 @@ void SetupHardware(void)
 	/* Relocate the interrupt vector table to the bootloader section */
 	MCUCR = (1 << IVCE);
 	MCUCR = (1 << IVSEL);
-    
+
 	/* Initialize the USB subsystem */
 	USB_Init();
-
-    LEDs_Init();
+	LEDs_Init();
+	
+	/* Bootloader active LED toggle timer initialization */
+	//TIMSK1 = (1 << TOIE1);
+	//TCCR1B = ((1 << CS11) | (1 << CS10));
 }
 
 /** Resets all configured hardware required for the bootloader back to their original states. */
@@ -206,21 +213,30 @@ void ResetHardware(void)
     LEDs_SetAllLEDs(0);
 }
 
+/** ISR to periodically toggle the LEDs on the board to indicate that the bootloader is active. */
+ISR(TIMER1_OVF_vect, ISR_BLOCK)
+{
+	LEDs_ToggleLEDs(LEDS_LED1 | LEDS_LED2);
+}
+
 /** Event handler for the USB_ControlRequest event. This is used to catch and process control requests sent to
  *  the device from the USB host before passing along unhandled control requests to the library for processing
  *  internally.
  */
 void EVENT_USB_Device_ControlRequest(void)
-{    
-	/* Get the size of the command and data from the wLength value */
-	SentCommand.DataSize = USB_ControlRequest.wLength;
-	
+{	
 	/* Ignore any requests that aren't directed to the DFU interface */
 	if ((USB_ControlRequest.bmRequestType & (CONTROL_REQTYPE_TYPE | CONTROL_REQTYPE_RECIPIENT)) !=
 	    (REQTYPE_CLASS | REQREC_INTERFACE))
 	{
 		return;
 	}
+
+	/* Activity - toggle indicator LEDs */
+	LEDs_ToggleLEDs(LEDS_LED1 | LEDS_LED2);
+
+	/* Get the size of the command and data from the wLength value */
+	SentCommand.DataSize = USB_ControlRequest.wLength;
 
 	switch (USB_ControlRequest.bRequest)
 	{
@@ -247,7 +263,7 @@ void EVENT_USB_Device_ControlRequest(void)
 				}
 
 				/* First byte of the data stage is the DNLOAD request's command */
-				SentCommand.Command = Endpoint_Read_Byte();
+				SentCommand.Command = Endpoint_Read_8();
 
 				/* One byte of the data stage is the command, so subtract it from the total data bytes */
 				SentCommand.DataSize--;
@@ -256,7 +272,7 @@ void EVENT_USB_Device_ControlRequest(void)
 				for (uint8_t DataByte = 0; (DataByte < sizeof(SentCommand.Data)) &&
 				     Endpoint_BytesInEndpoint(); DataByte++)
 				{
-					SentCommand.Data[DataByte] = Endpoint_Read_Byte();
+					SentCommand.Data[DataByte] = Endpoint_Read_8();
 					SentCommand.DataSize--;
 				}
 
@@ -311,7 +327,7 @@ void EVENT_USB_Device_ControlRequest(void)
 							}
 
 							/* Write the next word into the current flash page */
-							boot_page_fill(CurrFlashAddress.Long, Endpoint_Read_Word_LE());
+							boot_page_fill(CurrFlashAddress.Long, Endpoint_Read_16_LE());
 
 							/* Adjust counters */
 							WordsInFlashPage      += 1;
@@ -360,7 +376,7 @@ void EVENT_USB_Device_ControlRequest(void)
 							}
 
 							/* Read the byte from the USB interface and write to to the EEPROM */
-							eeprom_write_byte((uint8_t*)StartAddr, Endpoint_Read_Byte());
+							eeprom_write_byte((uint8_t*)StartAddr, Endpoint_Read_8());
 
 							/* Adjust counters */
 							StartAddr++;
@@ -392,12 +408,12 @@ void EVENT_USB_Device_ControlRequest(void)
 				{
 					/* Blank checking is performed in the DFU_DNLOAD request - if we get here we've told the host
 					   that the memory isn't blank, and the host is requesting the first non-blank address */
-					Endpoint_Write_Word_LE(StartAddr);
+					Endpoint_Write_16_LE(StartAddr);
 				}
 				else
 				{
 					/* Idle state upload - send response to last issued command */
-					Endpoint_Write_Byte(ResponseByte);
+					Endpoint_Write_8(ResponseByte);
 				}
 			}
 			else
@@ -432,9 +448,9 @@ void EVENT_USB_Device_ControlRequest(void)
 
 						/* Read the flash word and send it via USB to the host */
 						#if (FLASHEND > 0xFFFF)
-							Endpoint_Write_Word_LE(pgm_read_word_far(CurrFlashAddress.Long));
+							Endpoint_Write_16_LE(pgm_read_word_far(CurrFlashAddress.Long));
 						#else
-							Endpoint_Write_Word_LE(pgm_read_word(CurrFlashAddress.Long));
+							Endpoint_Write_16_LE(pgm_read_word(CurrFlashAddress.Long));
 						#endif
 
 						/* Adjust counters */
@@ -461,7 +477,7 @@ void EVENT_USB_Device_ControlRequest(void)
 						}
 
 						/* Read the EEPROM byte and send it via USB to the host */
-						Endpoint_Write_Byte(eeprom_read_byte((uint8_t*)StartAddr));
+						Endpoint_Write_8(eeprom_read_byte((uint8_t*)StartAddr));
 
 						/* Adjust counters */
 						StartAddr++;
@@ -480,17 +496,17 @@ void EVENT_USB_Device_ControlRequest(void)
 			Endpoint_ClearSETUP();
 
 			/* Write 8-bit status value */
-			Endpoint_Write_Byte(DFU_Status);
+			Endpoint_Write_8(DFU_Status);
 
 			/* Write 24-bit poll timeout value */
-			Endpoint_Write_Byte(0);
-			Endpoint_Write_Word_LE(0);
+			Endpoint_Write_8(0);
+			Endpoint_Write_16_LE(0);
 
 			/* Write 8-bit state value */
-			Endpoint_Write_Byte(DFU_State);
+			Endpoint_Write_8(DFU_State);
 
 			/* Write 8-bit state string ID number */
-			Endpoint_Write_Byte(0);
+			Endpoint_Write_8(0);
 
 			Endpoint_ClearIN();
 
@@ -508,7 +524,7 @@ void EVENT_USB_Device_ControlRequest(void)
 			Endpoint_ClearSETUP();
 
 			/* Write the current device state to the endpoint */
-			Endpoint_Write_Byte(DFU_State);
+			Endpoint_Write_8(DFU_State);
 
 			Endpoint_ClearIN();
 
@@ -547,7 +563,7 @@ static void DiscardFillerBytes(uint8_t NumberOfBytes)
 		}
 		else
 		{
-			Endpoint_Discard_Byte();
+			Endpoint_Discard_8();
 		}
 	}
 }

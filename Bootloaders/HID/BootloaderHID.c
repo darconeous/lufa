@@ -113,10 +113,18 @@ void EVENT_USB_Device_ControlRequest(void)
 			while (!(Endpoint_IsOUTReceived()));
 		
 			/* Read in the write destination address */
-			uint16_t PageAddress = Endpoint_Read_Word_LE();
+			#if (FLASHEND > 0xFFFF)
+			uint32_t PageAddress = ((uint32_t)Endpoint_Read_16_LE() << 8);
+			#else
+			uint16_t PageAddress = Endpoint_Read_16_LE();
+			#endif
 			
 			/* Check if the command is a program page command, or a start application command */
+			#if (FLASHEND > 0xFFFF)
+			if ((uint16_t)(PageAddress >> 8) == COMMAND_STARTAPPLICATION)
+			#else
 			if (PageAddress == COMMAND_STARTAPPLICATION)
+			#endif
 			{
 				RunBootloader = false;
 			}
@@ -137,7 +145,7 @@ void EVENT_USB_Device_ControlRequest(void)
 					}
 
 					/* Write the next data word to the FLASH page */
-					boot_page_fill(PageAddress + ((uint16_t)PageWord << 1), Endpoint_Read_Word_LE());
+					boot_page_fill(PageAddress + ((uint16_t)PageWord << 1), Endpoint_Read_16_LE());
 				}
 
 				/* Write the filled FLASH page to memory */

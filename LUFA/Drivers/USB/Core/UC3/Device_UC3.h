@@ -127,6 +127,7 @@
 			/** Returns the current USB frame number, when in device mode. Every millisecond the USB bus is active (i.e. enumerated to a host)
 			 *  the frame number is incremented by one.
 			 */
+			static inline uint16_t USB_Device_GetFrameNumber(void) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 			static inline uint16_t USB_Device_GetFrameNumber(void)
 			{
 				return AVR32_USBB.UDFNUM.fnum;
@@ -179,7 +180,7 @@
 				AVR32_USBB.UDCON.adden = true;
 			}
 
-			static inline bool USB_Device_IsAddressSet(void) ATTR_ALWAYS_INLINE;
+			static inline bool USB_Device_IsAddressSet(void) ATTR_ALWAYS_INLINE ATTR_WARN_UNUSED_RESULT;
 			static inline bool USB_Device_IsAddressSet(void)
 			{
 				return AVR32_USBB.UDCON.adden;
@@ -187,26 +188,28 @@
 
 			static inline void USB_Device_GetSerialString(uint16_t* UnicodeString)
 			{
-				ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+				uint_reg_t CurrentGlobalInt = GetGlobalInterruptMask();
+				GlobalInterruptDisable();
+				
+				uint8_t* SigReadAddress = (uint8_t*)0x80800204;
+
+				for (uint8_t SerialCharNum = 0; SerialCharNum < (INTERNAL_SERIAL_LENGTH_BITS / 4); SerialCharNum++)
 				{
-					uint8_t* SigReadAddress = (uint8_t*)0x80800204;
+					uint8_t SerialByte = *SigReadAddress;
 
-					for (uint8_t SerialCharNum = 0; SerialCharNum < (INTERNAL_SERIAL_LENGTH_BITS / 4); SerialCharNum++)
+					if (SerialCharNum & 0x01)
 					{
-						uint8_t SerialByte = *SigReadAddress;
-
-						if (SerialCharNum & 0x01)
-						{
-							SerialByte >>= 4;
-							SigReadAddress++;
-						}
-
-						SerialByte &= 0x0F;
-
-						UnicodeString[SerialCharNum] = cpu_to_le16((SerialByte >= 10) ?
-						                                           (('A' - 10) + SerialByte) : ('0' + SerialByte));
+						SerialByte >>= 4;
+						SigReadAddress++;
 					}
+
+					SerialByte &= 0x0F;
+
+					UnicodeString[SerialCharNum] = cpu_to_le16((SerialByte >= 10) ?
+															   (('A' - 10) + SerialByte) : ('0' + SerialByte));
 				}
+				
+				SetGlobalInterruptMask(CurrentGlobalInt);
 			}
 	#endif
 

@@ -37,7 +37,7 @@
 
 uint8_t USB_ControlPipeSize = PIPE_CONTROLPIPE_DEFAULT_SIZE;
 
-volatile uint8_t  USB_SelectedPipe = PIPE_CONTROLPIPE;
+volatile uint32_t USB_SelectedPipe = PIPE_CONTROLPIPE;
 volatile uint8_t* USB_PipeFIFOPos[PIPE_TOTAL_PIPES];
 
 bool Pipe_ConfigurePipe(const uint8_t Number,
@@ -69,7 +69,7 @@ void Pipe_ClearPipes(void)
 	{
 		Pipe_SelectPipe(PNum);
 		(&AVR32_USBB.upcfg0)[PNum]    = 0;
-		(&AVR32_USBB.upcon0clr)[PNum] = 0xFFFFFFFF;
+		(&AVR32_USBB.upcon0clr)[PNum] = -1;
 		USB_PipeFIFOPos[PNum]         = &AVR32_USBB_SLAVE[PNum * 0x10000];
 		Pipe_DisablePipe();
 	}

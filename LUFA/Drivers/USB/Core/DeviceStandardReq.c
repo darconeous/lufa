@@ -48,11 +48,11 @@ bool    USB_RemoteWakeupEnabled;
 
 void USB_Device_ProcessControlRequest(void)
 {
-	USB_ControlRequest.bmRequestType = Endpoint_Read_Byte();
-	USB_ControlRequest.bRequest      = Endpoint_Read_Byte();
-	USB_ControlRequest.wValue        = Endpoint_Read_Word_LE();
-	USB_ControlRequest.wIndex        = Endpoint_Read_Word_LE();
-	USB_ControlRequest.wLength       = Endpoint_Read_Word_LE();
+	USB_ControlRequest.bmRequestType = Endpoint_Read_8();
+	USB_ControlRequest.bRequest      = Endpoint_Read_8();
+	USB_ControlRequest.wValue        = Endpoint_Read_16_LE();
+	USB_ControlRequest.wIndex        = Endpoint_Read_16_LE();
+	USB_ControlRequest.wLength       = Endpoint_Read_16_LE();
 
 	EVENT_USB_Device_ControlRequest();
 
@@ -114,20 +114,20 @@ void USB_Device_ProcessControlRequest(void)
 
 static void USB_Device_SetAddress(void)
 {
-	uint8_t DeviceAddress = (USB_ControlRequest.wValue & 0x7F);
+	uint8_t    DeviceAddress    = (USB_ControlRequest.wValue & 0x7F);
+	uint_reg_t CurrentGlobalInt = GetGlobalInterruptMask();
+	GlobalInterruptDisable();
+				
+	Endpoint_ClearSETUP();
 
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-	{
-		Endpoint_ClearSETUP();
+	Endpoint_ClearStatusStage();
 
-		Endpoint_ClearStatusStage();
+	while (!(Endpoint_IsINReady()));
 
-		while (!(Endpoint_IsINReady()));
-
-		USB_Device_SetDeviceAddress(DeviceAddress);
-	}
-	
+	USB_Device_SetDeviceAddress(DeviceAddress);
 	USB_DeviceState = (DeviceAddress) ? DEVICE_STATE_Addressed : DEVICE_STATE_Default;
+	
+	SetGlobalInterruptMask(CurrentGlobalInt);
 }
 
 static void USB_Device_SetConfiguration(void)
@@ -138,18 +138,21 @@ static void USB_Device_SetConfiguration(void)
 	#else
 	USB_Descriptor_Device_t* DevDescriptorPtr;
 
-	#if defined(USE_FLASH_DESCRIPTORS)
-		#define MemoryAddressSpace  MEMSPACE_FLASH
-	#elif defined(USE_EEPROM_DESCRIPTORS)
-		#define MemoryAddressSpace  MEMSPACE_EEPROM
-	#elif defined(USE_SRAM_DESCRIPTORS)
-		#define MemoryAddressSpace  MEMSPACE_SRAM
-	#else
-		uint8_t MemoryAddressSpace;
+	#if defined(ARCH_HAS_MULTI_ADDRESS_SPACE)
+		#if defined(USE_FLASH_DESCRIPTORS)
+			#define MemoryAddressSpace  MEMSPACE_FLASH
+		#elif defined(USE_EEPROM_DESCRIPTORS)
+			#define MemoryAddressSpace  MEMSPACE_EEPROM
+		#elif defined(USE_SRAM_DESCRIPTORS)
+			#define MemoryAddressSpace  MEMSPACE_SRAM
+		#else
+			uint8_t MemoryAddressSpace;
+		#endif
 	#endif
-
+	
 	if (CALLBACK_USB_GetDescriptor((DTYPE_Device << 8), 0, (void*)&DevDescriptorPtr
-	#if !defined(USE_FLASH_DESCRIPTORS) && !defined(USE_EEPROM_DESCRIPTORS) && !defined(USE_RAM_DESCRIPTORS)
+	#if defined(ARCH_HAS_MULTI_ADDRESS_SPACE) && \
+	    !(defined(USE_FLASH_DESCRIPTORS) || defined(USE_EEPROM_DESCRIPTORS) || defined(USE_RAM_DESCRIPTORS))
 	                               , &MemoryAddressSpace
 	#endif
 	                               ) == NO_DESCRIPTOR)
@@ -157,6 +160,7 @@ static void USB_Device_SetConfiguration(void)
 		return;
 	}
 
+	#if defined(ARCH_HAS_MULTI_ADDRESS_SPACE)
 	if (MemoryAddressSpace == MEMSPACE_FLASH)
 	{
 		if (((uint8_t)USB_ControlRequest.wValue > pgm_read_byte(&DevDescriptorPtr->NumberOfConfigurations)))
@@ -172,6 +176,10 @@ static void USB_Device_SetConfiguration(void)
 		if ((uint8_t)USB_ControlRequest.wValue > DevDescriptorPtr->NumberOfConfigurations)
 		  return;
 	}
+	#else
+	if ((uint8_t)USB_ControlRequest.wValue > DevDescriptorPtr->NumberOfConfigurations)
+	  return;	
+	#endif
 	#endif
 
 	Endpoint_ClearSETUP();
@@ -192,7 +200,7 @@ static void USB_Device_GetConfiguration(void)
 {
 	Endpoint_ClearSETUP();
 
-	Endpoint_Write_Byte(USB_ConfigurationNumber);
+	Endpoint_Write_8(USB_ConfigurationNumber);
 	Endpoint_ClearIN();
 
 	Endpoint_ClearStatusStage();
@@ -224,7 +232,8 @@ static void USB_Device_GetDescriptor(void)
 	const void* DescriptorPointer;
 	uint16_t    DescriptorSize;
 
-	#if !defined(USE_FLASH_DESCRIPTORS) && !defined(USE_EEPROM_DESCRIPTORS) && !defined(USE_RAM_DESCRIPTORS)
+	#if defined(ARCH_HAS_MULTI_ADDRESS_SPACE) && \
+	    !(defined(USE_FLASH_DESCRIPTORS) || defined(USE_EEPROM_DESCRIPTORS) || defined(USE_RAM_DESCRIPTORS))
 	uint8_t DescriptorAddressSpace;
 	#endif
 
@@ -302,7 +311,7 @@ static void USB_Device_GetStatus(void)
 
 	Endpoint_ClearSETUP();
 
-	Endpoint_Write_Word_LE(CurrentStatus);
+	Endpoint_Write_16_LE(CurrentStatus);
 	Endpoint_ClearIN();
 
 	Endpoint_ClearStatusStage();

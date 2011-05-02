@@ -60,6 +60,10 @@
 		#if !defined(__INCLUDE_FROM_COMMON_H)
 			#error Do not include this file directly. Include LUFA/Common/Common.h instead to gain this functionality.
 		#endif
+		
+		#if !(defined(ARCH_BIG_ENDIAN) || defined(ARCH_LITTLE_ENDIAN))
+			#error ARCH_BIG_ENDIAN or ARCH_LITTLE_ENDIAN not set for the specified architecture.
+		#endif
 
 	/* Public Interface - May be used in end-application: */
 		/* Macros: */
@@ -70,11 +74,11 @@
 			 *
 			 *  \ingroup Group_ByteSwapping
 			 *
-			 *  \param[in]  x  16-bit value whose byte ordering is to be swapped.
+			 *  \param[in] x  16-bit value whose byte ordering is to be swapped.
 			 *
 			 *  \return Input value with the byte ordering reversed.
 			 */
-			#define SWAPENDIAN_16(x)          ((((x) & 0xFF00) >> 8) | (((x) & 0x00FF) << 8))
+			#define SWAPENDIAN_16(x)            (uint16_t)((((x) & 0xFF00) >> 8) | (((x) & 0x00FF) << 8))
 
 			/** Swaps the byte ordering of a 32-bit value at compile-time. Do not use this macro for swapping byte orderings
 			 *  of dynamic values computed at runtime- use \ref SwapEndian_32() instead. The result of this macro can be used
@@ -83,12 +87,12 @@
 			 *
 			 *  \ingroup Group_ByteSwapping
 			 *
-			 *  \param[in]  x  32-bit value whose byte ordering is to be swapped.
+			 *  \param[in] x  32-bit value whose byte ordering is to be swapped.
 			 *
 			 *  \return Input value with the byte ordering reversed.
 			 */
-			#define SWAPENDIAN_32(x)          ((((x) & 0xFF000000UL) >> 24UL) | (((x) & 0x00FF0000UL) >> 8UL) | \
-			                                   (((x) & 0x0000FF00UL) << 8UL)  | (((x) & 0x000000FFUL) << 24UL))
+			#define SWAPENDIAN_32(x)            (uint32_t)((((x) & 0xFF000000UL) >> 24UL) | (((x) & 0x00FF0000UL) >> 8UL) | \
+			                                               (((x) & 0x0000FF00UL) << 8UL)  | (((x) & 0x000000FFUL) << 24UL))
 
 			#if defined(ARCH_BIG_ENDIAN) && !defined(le16_to_cpu)
 				#define le16_to_cpu(x)           SwapEndian_16(x)
@@ -436,24 +440,24 @@
 			 *
 			 *  \ingroup Group_ByteSwapping
 			 *
-			 *  \param[in,out] Data   Pointer to a number containing an even number of bytes to be reversed.
-			 *  \param[in]     Bytes  Length of the data in bytes.
+			 *  \param[in,out] Data    Pointer to a number containing an even number of bytes to be reversed.
+			 *  \param[in]     Length  Length of the data in bytes.
 			 */
-			static inline void SwapEndian_n(void* Data,
-			                                uint8_t Bytes) ATTR_NON_NULL_PTR_ARG(1);
-			static inline void SwapEndian_n(void* Data,
-			                                uint8_t Bytes)
+			static inline void SwapEndian_n(void* const Data,
+			                                uint8_t Length) ATTR_NON_NULL_PTR_ARG(1);
+			static inline void SwapEndian_n(void* const Data,
+			                                uint8_t Length)
 			{
 				uint8_t* CurrDataPos = (uint8_t*)Data;
 
-				while (Bytes > 1)
+				while (Length > 1)
 				{
 					uint8_t Temp = *CurrDataPos;
-					*CurrDataPos = *(CurrDataPos + Bytes - 1);
-					*(CurrDataPos + Bytes - 1) = Temp;
+					*CurrDataPos = *(CurrDataPos + Length - 1);
+					*(CurrDataPos + Length - 1) = Temp;
 
 					CurrDataPos++;
-					Bytes -= 2;
+					Length -= 2;
 				}
 			}
 

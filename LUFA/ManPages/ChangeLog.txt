@@ -18,20 +18,22 @@
   *   - Added new Endpoint_Null_Stream() and Pipe_Null_Stream() functions
   *   - Added new ADC_GET_CHANNEL_MASK() convenience macro
   *   - Added new HID report item macros (with HID_RI_ prefix) to allow for easy creation and editing of HID report descriptors
-  *   - Added new HID_DESCRIPTOR_MOUSE, HID_DESCRIPTOR_KEYBOARD, HID_DESCRIPTOR_JOYSTICK and HID_DESCRIPTOR_VENDOR macros
+  *   - Added new HID_DESCRIPTOR_MOUSE(), HID_DESCRIPTOR_KEYBOARD(), HID_DESCRIPTOR_JOYSTICK() and HID_DESCRIPTOR_VENDOR() macros
   *     for easy automatic creation of basic USB HID device reports
   *   - Added new MAX() and MIN() convenience macros
   *   - Added new Serial_SendData() function to the Serial driver
   *   - Added board driver support for the Sparkfun ATMEGA8U2 breakout board
   *   - Added TWI baud rate prescaler and bit length parameters to the TWI_Init() function (thanks to Thomas Herlinghaus)
   *   - Internal restructuring for eventual multiple architecture ports
-  *   - Added start of an AVR32 UC3 architecture port (currently incomplete/experimental)
+  *   - Added AVR32 UC3 architecture port (currently incomplete/experimental)
+  *   - Added new architecture independant functions to enable, disable, save and restore the Global Interrupt Enable flags
   *  - Library Applications:
   *   - Added ability to write protect Mass Storage disk write operations from the host OS
   *   - Added new MIDIToneGenerator project
   *   - Added new KeyboardMouseMultiReport Device ClassDriver demo
   *   - Added new VirtualSerialMassStorage Device ClassDriver demo
   *   - Added HID class bootloader, compatible with a modified version of the command line Teensy loader from PJRC.com
+  *   - Added LED flashing to the CDC and DFU class bootloaders to indicate when they are running
   *
   *  <b>Changed:</b>
   *  - Core:
@@ -61,6 +63,10 @@
   *   - Endpoint_ResetFIFO() renamed to Endpoint_ResetEndpoint(), to be consistent with the Pipe_ResetPipe() function name
   *   - Implemented on-demand PLL clock generation for the U4, U6 and U7 series USB AVRs when automatic PLL mode is specified
   *   - F_CLOCK changed to F_USB to be more descriptive, and applicable on future architecture ports
+  *   - Renamed all low level Endpoint_Read_*, Endpoint_Write_* and Endpoint_Discard_* functions to use the number of bits instead of
+  *     a symbolic size (Byte, Word, DWord) so that the function names are applicable and correct across all architectures
+  *   - Renamed all low level Pipe_Read_*, Pipe_Write_* and Pipe_Discard_* functions to use the number of bits instead of
+  *     a symbolic size (Byte, Word, DWord) so that the function names are applicable and correct across all architectures
   *  - Library Applications:
   *   - Changed the XPLAINBridge software UART to use the regular timer CTC mode instead of the alternative CTC mode
   *     via the Input Capture register, to reduce user confusion
